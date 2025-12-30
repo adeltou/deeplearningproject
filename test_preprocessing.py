@@ -12,11 +12,11 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import numpy as np
 import matplotlib.pyplot as plt
 
-from src.preprocessing.data_loader import RDD2022DataLoader
-from src.preprocessing.preprocessing import ImagePreprocessor, DataAugmentorSimple
-from src.preprocessing.augmentation import AdvancedDataAugmentor
-from src.utils.config import *
-from src.utils.helpers import *
+from preprocessing.data_loader import RDD2022DataLoader
+from preprocessing.preprocessing import ImagePreprocessor, DataAugmentorSimple
+from preprocessing.augmentation import AdvancedDataAugmentor
+from utils.config import *
+from utils.helpers import *
 
 
 def test_complete_preprocessing_pipeline(data_path: str):
