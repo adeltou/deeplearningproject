@@ -10,6 +10,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import time
 from datetime import datetime
 from pathlib import Path
+import torch
 
 try:
     from ultralytics import YOLO
@@ -171,7 +172,7 @@ def train_yolo(data_path: str,
         save_period=10,  # Sauvegarder tous les 10 epochs
         plots=True,
         verbose=True,
-        device='0' if tf.config.list_physical_devices('GPU') else 'cpu',
+        device='0' if torch.cuda.is_available() else 'cpu',
         # Augmentation
         mosaic=1.0,  # Augmentation par mosaïque
         mixup=0.1,   # Augmentation par mixup
