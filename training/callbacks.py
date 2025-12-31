@@ -41,7 +41,7 @@ class EarlyStoppingWithRestore(keras.callbacks.Callback):
     def on_train_begin(self, logs=None):
         self.wait = 0
         self.stopped_epoch = 0
-        self.best = np.Inf if 'loss' in self.monitor else -np.Inf
+        self.best = np.inf if 'loss' in self.monitor else -np.inf
     
     def on_epoch_end(self, epoch, logs=None):
         current = logs.get(self.monitor)
