@@ -34,7 +34,8 @@ class HybridDataGenerator(keras.utils.Sequence):
                  preprocessor: ImagePreprocessor,
                  batch_size: int = BATCH_SIZE,
                  shuffle: bool = True,
-                 augment: bool = False):
+                 augment: bool = False,
+                 max_samples: int = None):
         """
         Args:
             data_loader: Instance de RDD2022DataLoader
@@ -42,13 +43,15 @@ class HybridDataGenerator(keras.utils.Sequence):
             batch_size: Taille des batches
             shuffle: Mélanger les données
             augment: Appliquer l'augmentation avancée
+            max_samples: Nombre maximum d'images à utiliser (None = toutes)
         """
         self.data_loader = data_loader
         self.preprocessor = preprocessor
         self.batch_size = batch_size
         self.shuffle = shuffle
         self.augment = augment
-        
+        self.max_samples = max_samples
+
         # Créer l'augmenteur avancé si nécessaire
         if self.augment:
             try:
@@ -57,16 +60,21 @@ class HybridDataGenerator(keras.utils.Sequence):
             except:
                 self.augmentor = AdvancedDataAugmentor(use_albumentation=False)
                 print("⚠️  Augmenteur simple activé (Albumentations non disponible)")
-        
+
         # Indices
         self.indices = np.arange(len(self.data_loader))
-        
+
+        # Limiter le nombre d'échantillons si spécifié
+        if self.max_samples is not None:
+            self.indices = self.indices[:min(self.max_samples, len(self.indices))]
+            print(f"⚠️  Dataset limité à {len(self.indices)} images (max_samples={self.max_samples})")
+
         if self.shuffle:
             np.random.shuffle(self.indices)
     
     def __len__(self):
         """Nombre de batches par epoch"""
-        return int(np.ceil(len(self.data_loader) / self.batch_size))
+        return int(np.ceil(len(self.indices) / self.batch_size))
     
     def __getitem__(self, idx):
         """Génère un batch"""
@@ -113,7 +121,9 @@ def train_hybrid(data_path: str,
                  batch_size: int = BATCH_SIZE,
                  learning_rate: float = LEARNING_RATE,
                  use_augmentation: bool = True,
-                 save_results: bool = True):
+                 save_results: bool = True,
+                 max_samples_train: int = None,
+                 max_samples_val: int = None):
     """
     Fonction principale pour entraîner le modèle hybride
     
@@ -174,15 +184,17 @@ def train_hybrid(data_path: str,
         preprocessor=preprocessor,
         batch_size=batch_size,
         shuffle=True,
-        augment=use_augmentation
+        augment=use_augmentation,
+        max_samples=max_samples_train
     )
-    
+
     val_generator = HybridDataGenerator(
         data_loader=val_loader,
         preprocessor=preprocessor,
         batch_size=batch_size,
         shuffle=False,
-        augment=False
+        augment=False,
+        max_samples=max_samples_val
     )
     
     print(f"✅ Data generators créés:")

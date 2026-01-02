@@ -73,7 +73,8 @@ def train_yolo(data_path: str,
                img_size: int = 640,
                learning_rate: float = LEARNING_RATE_YOLO,
                patience: int = 15,
-               save_results: bool = True):
+               save_results: bool = True,
+               fraction: float = 1.0):
     """
     Fonction principale pour entraîner YOLO segmentation
     
@@ -118,6 +119,7 @@ def train_yolo(data_path: str,
     print(f"  - Image size: {img_size}")
     print(f"  - Learning rate: {learning_rate}")
     print(f"  - Patience: {patience}")
+    print(f"  - Fraction du dataset: {fraction * 100:.1f}%")
     
     # ========================================================================
     # 2. PRÉPARATION DES DONNÉES
@@ -173,6 +175,7 @@ def train_yolo(data_path: str,
         plots=True,
         verbose=True,
         device='0' if torch.cuda.is_available() else 'cpu',
+        fraction=fraction,  # Fraction du dataset à utiliser (1.0 = 100%)
         # Augmentation
         mosaic=1.0,  # Augmentation par mosaïque
         mixup=0.1,   # Augmentation par mixup
