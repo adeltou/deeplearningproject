@@ -301,7 +301,7 @@ def quick_test_training(data_path: str):
 
 if __name__ == "__main__":
     # IMPORTANT: Modifier ce chemin selon votre configuration
-    DATA_PATH = "C:/Users/DELL/Desktop/dataset/RDD_SPLIT"
+    DATA_PATH = "C:/Users/DELL/Desktop/dataset/RDD_SPLIT_YOLO_SEG"
     
     # Vérifier que le chemin existe
     if not os.path.exists(DATA_PATH):
