@@ -103,8 +103,8 @@ def train_unet_100(data_path, epochs=NUM_EPOCHS):
         models_dir=MODELS_DIR,
         log_dir=LOGS_DIR,
         monitor='val_dice_coefficient',
-        patience_early=5,  # Réduit pour 100 
-        patience_lr=3
+        patience_early_stop=5,  # Réduit pour 100 images
+        patience_reduce_lr=3
     )
     
     # 4. Entraînement
