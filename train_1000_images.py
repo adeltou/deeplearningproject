@@ -107,11 +107,11 @@ def train_unet_1000(data_path, epochs=10):
     
     callbacks = create_callbacks(
         model_name='unet_1000img',
-        save_dir=MODELS_DIR,
-        logs_dir=LOGS_DIR,
+        models_dir=MODELS_DIR,
+        log_dir=LOGS_DIR,
         monitor='val_dice_coefficient',
-        patience_early=10,
-        patience_lr=5
+        patience_early_stop=10,
+        patience_reduce_lr=5
     )
     
     print(f"✅ {len(callbacks)} callbacks configurés")
@@ -228,11 +228,11 @@ def train_hybrid_1000(data_path, epochs=10):
     # 3. Callbacks
     callbacks = create_callbacks(
         model_name='hybrid_1000img',
-        save_dir=MODELS_DIR,
-        logs_dir=LOGS_DIR,
+        models_dir=MODELS_DIR,
+        log_dir=LOGS_DIR,
         monitor='val_dice_coefficient',
-        patience_early=10,
-        patience_lr=5
+        patience_early_stop=10,
+        patience_reduce_lr=5
     )
     
     # 4. Entraînement
