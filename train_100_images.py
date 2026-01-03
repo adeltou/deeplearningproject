@@ -1,6 +1,6 @@
 """
-Script d'Entraînement Rapide avec 1000 Images
-Pour tester les 3 architectures rapidement
+Script d'Entraînement ULTRA-RAPIDE avec 100 Images
+Temps estimé : 5-8 minutes pour les 3 modèles
 """
 
 import sys
@@ -22,54 +22,53 @@ from utils.helpers import set_seeds
 import tensorflow as tf
 
 
-def train_unet_1000(data_path, epochs=10):
+# =============================================================================
+# CONFIGURATION GLOBALE
+# =============================================================================
+NUM_TRAIN_IMAGES = 100   # ← CHANGE ICI pour modifier le nombre d'images train
+NUM_VAL_IMAGES = 20      # ← CHANGE ICI pour modifier le nombre d'images val
+NUM_EPOCHS = 10          # ← CHANGE ICI pour modifier le nombre d'epochs
+
+
+def train_unet_100(data_path, epochs=NUM_EPOCHS):
     """
-    Entraîne U-Net sur 1000 images
+    Entraîne U-Net sur 100 images
+    Temps estimé : 2-3 minutes
     """
     print("\n" + "=" * 100)
-    print("⚡ ENTRAÎNEMENT U-NET - 1000 IMAGES")
+    print(f"⚡ ENTRAÎNEMENT U-NET - {NUM_TRAIN_IMAGES} IMAGES, {epochs} EPOCHS")
+    print("=" * 100)
+    print(f"⏱️  Temps estimé : 2-3 minutes")
     print("=" * 100)
     
     # Configuration
     set_seeds(RANDOM_SEED)
     
     # 1. Charger les données
-    print("\n📦 PHASE 1: Chargement des données (1000 images)")
-    print("-" * 100)
+    print(f"\n📦 Chargement de {NUM_TRAIN_IMAGES} images...")
     
     train_loader = RDD2022DataLoader(data_path, split='train')
     val_loader = RDD2022DataLoader(data_path, split='val')
-    
-    # Prendre 1000 images train, 200 val
-    num_train = min(1000, len(train_loader))
-    num_val = min(200, len(val_loader))
-    
-    print(f"✅ Train: {num_train} images")
-    print(f"✅ Val: {num_val} images")
     
     # Charger les images
     preprocessor = ImagePreprocessor(target_size=IMG_SIZE, normalize=True)
     
     train_images = []
     train_masks = []
-    for i in range(num_train):
-        if i % 200 == 0:
-            print(f"  - Chargement train: {i}/{num_train}...")
+    for i in range(NUM_TRAIN_IMAGES):
         img, mask, _ = train_loader[i]
         train_images.append(img)
         train_masks.append(mask)
     
     val_images = []
     val_masks = []
-    for i in range(num_val):
-        if i % 50 == 0:
-            print(f"  - Chargement val: {i}/{num_val}...")
+    for i in range(NUM_VAL_IMAGES):
         img, mask, _ = val_loader[i]
         val_images.append(img)
         val_masks.append(mask)
     
     # Prétraiter
-    print("\n🔧 Prétraitement des données...")
+    print("🔧 Prétraitement...")
     X_train, y_train = preprocessor.preprocess_batch(train_images, train_masks)
     X_val, y_val = preprocessor.preprocess_batch(val_images, val_masks)
     
@@ -77,14 +76,11 @@ def train_unet_1000(data_path, epochs=10):
     y_train_cat = np.array([preprocessor.mask_to_categorical(m) for m in y_train])
     y_val_cat = np.array([preprocessor.mask_to_categorical(m) for m in y_val])
     
-    print(f"✅ X_train: {X_train.shape}")
-    print(f"✅ y_train: {y_train_cat.shape}")
-    print(f"✅ X_val: {X_val.shape}")
-    print(f"✅ y_val: {y_val_cat.shape}")
+    print(f"✅ Train: {X_train.shape[0]} images")
+    print(f"✅ Val: {X_val.shape[0]} images")
     
     # 2. Créer le modèle
-    print("\n🏗️  PHASE 2: Création du modèle U-Net")
-    print("-" * 100)
+    print("\n🏗️  Création du modèle U-Net...")
     
     model = create_unet_model(
         input_shape=IMG_SIZE + (IMG_CHANNELS,),
@@ -99,116 +95,98 @@ def train_unet_1000(data_path, epochs=10):
         metrics=['accuracy', DiceCoefficient(), IoUMetric()]
     )
     
-    print("✅ Modèle créé et compilé")
+    print("✅ Modèle créé")
     
     # 3. Callbacks
-    print("\n📊 PHASE 3: Configuration des callbacks")
-    print("-" * 100)
-    
     callbacks = create_callbacks(
-        model_name='unet_1000img',
-        save_dir=MODELS_DIR,
-        logs_dir=LOGS_DIR,
+        model_name='unet_100img',
+        models_dir=MODELS_DIR,
+        log_dir=LOGS_DIR,
         monitor='val_dice_coefficient',
-        patience_early=10,
-        patience_lr=5
+        patience_early=5,  # Réduit pour 100 
+        patience_lr=3
     )
     
-    print(f"✅ {len(callbacks)} callbacks configurés")
-    
     # 4. Entraînement
-    print("\n🚀 PHASE 4: Entraînement du modèle")
-    print("=" * 100)
-    print(f"⏱️  Durée estimée: 10-15 minutes")
-    print("=" * 100 + "\n")
+    print(f"\n🚀 Entraînement ({epochs} epochs)...\n")
     
     history = model.fit(
         X_train, y_train_cat,
         validation_data=(X_val, y_val_cat),
         epochs=epochs,
-        batch_size=16,
+        batch_size=8,  # Réduit pour aller plus vite avec peu d'images
         callbacks=callbacks,
         verbose=1
     )
     
     # 5. Résultats
     print("\n" + "=" * 100)
-    print("✅ ENTRAÎNEMENT U-NET TERMINÉ (1000 images)")
+    print(f"✅ U-NET TERMINÉ ({NUM_TRAIN_IMAGES} images, {epochs} epochs)")
     print("=" * 100)
     
     final_metrics = {
-        'train_loss': history.history['loss'][-1],
         'train_dice': history.history['dice_coefficient'][-1],
         'train_iou': history.history['iou'][-1],
-        'val_loss': history.history['val_loss'][-1],
         'val_dice': history.history['val_dice_coefficient'][-1],
         'val_iou': history.history['val_iou'][-1]
     }
     
-    print(f"\n📊 Métriques finales:")
+    print(f"\n📊 Résultats finaux:")
     for key, value in final_metrics.items():
         print(f"  - {key}: {value:.4f}")
     
     return model, history
 
 
-def train_hybrid_1000(data_path, epochs=10):
+def train_hybrid_100(data_path, epochs=NUM_EPOCHS):
     """
-    Entraîne le modèle Hybride sur 1000 images
+    Entraîne le modèle Hybride sur 100 images
+    Temps estimé : 2-3 minutes
     """
     print("\n" + "=" * 100)
-    print("⚡ ENTRAÎNEMENT HYBRIDE - 1000 IMAGES")
+    print(f"⚡ ENTRAÎNEMENT HYBRIDE - {NUM_TRAIN_IMAGES} IMAGES, {epochs} EPOCHS")
+    print("=" * 100)
+    print(f"⏱️  Temps estimé : 2-3 minutes")
     print("=" * 100)
     
     # Configuration
     set_seeds(RANDOM_SEED)
     
-    # 1. Charger les données (même code que U-Net)
-    print("\n📦 PHASE 1: Chargement des données (1000 images)")
-    print("-" * 100)
+    # 1. Charger les données
+    print(f"\n📦 Chargement de {NUM_TRAIN_IMAGES} images...")
     
     train_loader = RDD2022DataLoader(data_path, split='train')
     val_loader = RDD2022DataLoader(data_path, split='val')
-    
-    num_train = min(1000, len(train_loader))
-    num_val = min(200, len(val_loader))
-    
-    print(f"✅ Train: {num_train} images")
-    print(f"✅ Val: {num_val} images")
     
     # Charger et prétraiter
     preprocessor = ImagePreprocessor(target_size=IMG_SIZE, normalize=True)
     
     train_images = []
     train_masks = []
-    for i in range(num_train):
-        if i % 200 == 0:
-            print(f"  - Chargement train: {i}/{num_train}...")
+    for i in range(NUM_TRAIN_IMAGES):
         img, mask, _ = train_loader[i]
         train_images.append(img)
         train_masks.append(mask)
     
     val_images = []
     val_masks = []
-    for i in range(num_val):
-        if i % 50 == 0:
-            print(f"  - Chargement val: {i}/{num_val}...")
+    for i in range(NUM_VAL_IMAGES):
         img, mask, _ = val_loader[i]
         val_images.append(img)
         val_masks.append(mask)
     
-    print("\n🔧 Prétraitement des données...")
+    print("🔧 Prétraitement...")
     X_train, y_train = preprocessor.preprocess_batch(train_images, train_masks)
     X_val, y_val = preprocessor.preprocess_batch(val_images, val_masks)
     
     y_train_cat = np.array([preprocessor.mask_to_categorical(m) for m in y_train])
     y_val_cat = np.array([preprocessor.mask_to_categorical(m) for m in y_val])
     
-    print(f"✅ Données prêtes")
+    print(f"✅ Train: {X_train.shape[0]} images")
+    print(f"✅ Val: {X_val.shape[0]} images")
     
     # 2. Créer le modèle
-    print("\n🏗️  PHASE 2: Création du modèle Hybride")
-    print("-" * 100)
+    print("\n🏗️  Création du modèle Hybride...")
     
     model = create_hybrid_model(
         input_shape=IMG_SIZE + (IMG_CHANNELS,),
@@ -223,60 +201,58 @@ def train_hybrid_1000(data_path, epochs=10):
         metrics=['accuracy', DiceCoefficient(), IoUMetric()]
     )
     
-    print("✅ Modèle créé et compilé")
+    print("✅ Modèle créé")
     
     # 3. Callbacks
     callbacks = create_callbacks(
-        model_name='hybrid_1000img',
+        model_name='hybrid_100img',
         save_dir=MODELS_DIR,
         logs_dir=LOGS_DIR,
         monitor='val_dice_coefficient',
-        patience_early=10,
-        patience_lr=5
+        patience_early=5,
+        patience_lr=3
     )
     
     # 4. Entraînement
-    print("\n🚀 PHASE 4: Entraînement du modèle")
-    print("=" * 100)
-    print(f"⏱️  Durée estimée: 12-18 minutes")
-    print("=" * 100 + "\n")
+    print(f"\n🚀 Entraînement ({epochs} epochs)...\n")
     
     history = model.fit(
         X_train, y_train_cat,
         validation_data=(X_val, y_val_cat),
         epochs=epochs,
-        batch_size=16,
+        batch_size=8,
         callbacks=callbacks,
         verbose=1
     )
     
     # 5. Résultats
     print("\n" + "=" * 100)
-    print("✅ ENTRAÎNEMENT HYBRIDE TERMINÉ (1000 images)")
+    print(f"✅ HYBRIDE TERMINÉ ({NUM_TRAIN_IMAGES} images, {epochs} epochs)")
     print("=" * 100)
     
     final_metrics = {
-        'train_loss': history.history['loss'][-1],
         'train_dice': history.history['dice_coefficient'][-1],
         'train_iou': history.history['iou'][-1],
-        'val_loss': history.history['val_loss'][-1],
         'val_dice': history.history['val_dice_coefficient'][-1],
         'val_iou': history.history['val_iou'][-1]
     }
     
-    print(f"\n📊 Métriques finales:")
+    print(f"\n📊 Résultats finaux:")
     for key, value in final_metrics.items():
         print(f"  - {key}: {value:.4f}")
     
     return model, history
 
 
-def train_yolo_1000(data_path):
+def train_yolo_100(data_path, epochs=NUM_EPOCHS):
     """
-    Entraîne YOLO sur 1000 images
+    Entraîne YOLO sur 100 images
+    Temps estimé : 2-3 minutes
     """
     print("\n" + "=" * 100)
-    print("⚡ ENTRAÎNEMENT YOLO - 1000 IMAGES")
+    print(f"⚡ ENTRAÎNEMENT YOLO - {NUM_TRAIN_IMAGES} IMAGES, {epochs} EPOCHS")
+    print("=" * 100)
+    print(f"⏱️  Temps estimé : 2-3 minutes")
     print("=" * 100)
     
     try:
@@ -285,10 +261,10 @@ def train_yolo_1000(data_path):
         import shutil
         from pathlib import Path
         
-        # Créer un dataset temporaire avec 1000 images
-        print("\n📦 Création d'un dataset temporaire (1000 images)...")
+        # Créer un dataset temporaire avec 100 images
+        print(f"\n📦 Création dataset temporaire ({NUM_TRAIN_IMAGES} images)...")
         
-        temp_dir = Path(data_path).parent / 'RDD_SPLIT_1000'
+        temp_dir = Path(data_path).parent / 'RDD_SPLIT_100'
         
         # Supprimer l'ancien si existe
         if temp_dir.exists():
@@ -300,33 +276,31 @@ def train_yolo_1000(data_path):
         (temp_dir / 'val' / 'images').mkdir(parents=True, exist_ok=True)
         (temp_dir / 'val' / 'labels').mkdir(parents=True, exist_ok=True)
         
-        # Copier 1000 images train
+        # Copier 100 images train
         source_train_img = Path(data_path) / 'train' / 'images'
         source_train_lbl = Path(data_path) / 'train' / 'labels'
         
-        train_files = list(source_train_img.glob('*.jpg'))[:1000]
+        train_files = list(source_train_img.glob('*.jpg'))[:NUM_TRAIN_IMAGES]
         
-        print(f"  - Copie de {len(train_files)} images train...")
         for img_file in train_files:
             shutil.copy(img_file, temp_dir / 'train' / 'images')
             lbl_file = source_train_lbl / (img_file.stem + '.txt')
             if lbl_file.exists():
                 shutil.copy(lbl_file, temp_dir / 'train' / 'labels')
         
-        # Copier 200 images val
+        # Copier 20 images val
         source_val_img = Path(data_path) / 'val' / 'images'
         source_val_lbl = Path(data_path) / 'val' / 'labels'
         
-        val_files = list(source_val_img.glob('*.jpg'))[:200]
+        val_files = list(source_val_img.glob('*.jpg'))[:NUM_VAL_IMAGES]
         
-        print(f"  - Copie de {len(val_files)} images validation...")
         for img_file in val_files:
             shutil.copy(img_file, temp_dir / 'val' / 'images')
             lbl_file = source_val_lbl / (img_file.stem + '.txt')
             if lbl_file.exists():
                 shutil.copy(lbl_file, temp_dir / 'val' / 'labels')
         
-        print(f"✅ Dataset temporaire créé: {temp_dir}")
+        print(f"✅ Dataset créé: {temp_dir}")
         
         # Créer le fichier YAML
         yaml_path = temp_dir / 'data.yaml'
@@ -337,7 +311,7 @@ def train_yolo_1000(data_path):
         )
         
         # Créer le modèle YOLO
-        print("\n🏗️  Chargement du modèle YOLO...")
+        print("\n🏗️  Chargement YOLO...")
         yolo = YOLOSegmentation(
             model_name='yolov8n-seg.pt',
             num_classes=NUM_CLASSES,
@@ -346,34 +320,33 @@ def train_yolo_1000(data_path):
         yolo.load_pretrained()
         
         # Entraîner
-        print("\n🚀 Entraînement YOLO (1000 images, 10 epochs)...")
-        print("⏱️  Durée estimée: 8-12 minutes")
-        print("=" * 100 + "\n")
+        print(f"\n🚀 Entraînement YOLO ({epochs} epochs)...\n")
         
         results = yolo.model.train(
             data=str(yaml_path),
-            epochs=10,
-            batch=8,
+            epochs=epochs,
+            batch=4,  # Réduit pour aller plus vite
             imgsz=640,
             project=str(Path(data_path).parent / 'yolo_temp_results'),
-            name='yolo_1000img',
-            patience=10,
-            save=True,
-            plots=True,
+            name='yolo_100img',
+            patience=5,
+            save=False,  # Ne pas sauvegarder pour gagner du temps
+            plots=False,
             verbose=True
         )
         
-        print("\n✅ ENTRAÎNEMENT YOLO TERMINÉ (1000 images)")
+        print("\n" + "=" * 100)
+        print(f"✅ YOLO TERMINÉ ({NUM_TRAIN_IMAGES} images, {epochs} epochs)")
+        print("=" * 100)
         
         # Nettoyage
-        print("\n🗑️  Suppression du dataset temporaire...")
+        print("\n🗑️  Nettoyage...")
         shutil.rmtree(temp_dir)
         
         return yolo, results
         
     except ImportError:
         print("❌ Ultralytics non disponible!")
-        print("   Installez avec: pip install ultralytics --break-system-packages")
         return None, None
 
 
@@ -388,50 +361,62 @@ if __name__ == "__main__":
     
     # Menu
     print("\n" + "=" * 100)
-    print("⚡ ENTRAÎNEMENT RAPIDE - 1000 IMAGES")
+    print(f"⚡ ENTRAÎNEMENT ULTRA-RAPIDE - {NUM_TRAIN_IMAGES} IMAGES, {NUM_EPOCHS} EPOCHS")
     print("=" * 100)
-    print("\nQuel modèle voulez-vous entraîner ?")
-    print("  1. U-Net (10 epochs, ~12 min)")
-    print("  2. Hybride (10 epochs, ~15 min)")
-    print("  3. YOLO (10 epochs, ~10 min)")
-    print("  4. TOUS (30 epochs total, ~40 min)")
+    print("\n💡 Pour changer le nombre d'images ou d'epochs :")
+    print(f"   - Ouvre ce fichier et modifie les lignes 19-21")
+    print(f"   - NUM_TRAIN_IMAGES = {NUM_TRAIN_IMAGES}  ← Nombre d'images train")
+    print(f"   - NUM_VAL_IMAGES = {NUM_VAL_IMAGES}      ← Nombre d'images val")
+    print(f"   - NUM_EPOCHS = {NUM_EPOCHS}            ← Nombre d'epochs")
+    print()
+    print("Quel modèle voulez-vous entraîner ?")
+    print("  1. U-Net (~2 min)")
+    print("  2. Hybride (~3 min)")
+    print("  3. YOLO (~2 min)")
+    print("  4. TOUS (~8 min)")
     print()
     
     choice = input("Votre choix (1-4): ").strip()
     
     if choice == '1':
-        model, history = train_unet_1000(DATA_PATH, epochs=10)
+        model, history = train_unet_100(DATA_PATH)
         
     elif choice == '2':
-        model, history = train_hybrid_1000(DATA_PATH, epochs=10)
+        model, history = train_hybrid_100(DATA_PATH)
         
     elif choice == '3':
-        model, results = train_yolo_1000(DATA_PATH)
+        model, results = train_yolo_100(DATA_PATH)
         
     elif choice == '4':
         print("\n🚀 Entraînement des 3 modèles...")
+        print(f"⏱️  Temps total estimé : ~8 minutes")
+        print()
         
         # U-Net
         print("\n" + "🔹" * 50)
         print("1/3 - U-NET")
         print("🔹" * 50)
-        unet_model, unet_history = train_unet_1000(DATA_PATH, epochs=10)
+        unet_model, unet_history = train_unet_100(DATA_PATH)
         
         # Hybride
         print("\n" + "🔹" * 50)
         print("2/3 - HYBRIDE")
         print("🔹" * 50)
-        hybrid_model, hybrid_history = train_hybrid_1000(DATA_PATH, epochs=10)
+        hybrid_model, hybrid_history = train_hybrid_100(DATA_PATH)
         
         # YOLO
         print("\n" + "🔹" * 50)
         print("3/3 - YOLO")
         print("🔹" * 50)
-        yolo_model, yolo_results = train_yolo_1000(DATA_PATH)
+        yolo_model, yolo_results = train_yolo_100(DATA_PATH)
         
         print("\n" + "=" * 100)
-        print("🎉 TOUS LES ENTRAÎNEMENTS SONT TERMINÉS!")
+        print("🎉 TOUS LES ENTRAÎNEMENTS TERMINÉS!")
         print("=" * 100)
+        print(f"\n📊 Résumé:")
+        print(f"  - {NUM_TRAIN_IMAGES} images d'entraînement")
+        print(f"  - {NUM_EPOCHS} epochs par modèle")
+        print(f"  - 3 modèles entraînés avec succès")
         
     else:
         print("❌ Choix invalide!")
