@@ -86,11 +86,14 @@ class LearningRateLogger(keras.callbacks.Callback):
     """
     Log le learning rate à chaque epoch
     """
-    
+
     def on_epoch_end(self, epoch, logs=None):
         lr = self.model.optimizer.learning_rate
-        if isinstance(lr, tf.Variable):
-            lr = lr.numpy()
+        # Convertir en float de manière robuste
+        if hasattr(lr, 'numpy'):
+            lr = float(lr.numpy())
+        else:
+            lr = float(lr)
         logs['lr'] = lr
         print(f"\n📊 Learning Rate: {lr:.6f}")
 
