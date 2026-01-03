@@ -89,8 +89,14 @@ class LearningRateLogger(keras.callbacks.Callback):
     
     def on_epoch_end(self, epoch, logs=None):
         lr = self.model.optimizer.learning_rate
-        if isinstance(lr, tf.Variable):
-            lr = lr.numpy()
+        # Handle different learning rate types (Variable, Schedule, etc.)
+        if hasattr(lr, 'numpy'):
+            lr = float(lr.numpy())
+        elif callable(lr):
+            # For learning rate schedules
+            lr = float(lr(self.model.optimizer.iterations))
+        else:
+            lr = float(lr)
         logs['lr'] = lr
         print(f"\n📊 Learning Rate: {lr:.6f}")
 
