@@ -170,6 +170,13 @@ def create_callbacks(model_name: str,
     # Chemin pour les logs détaillés
     metrics_log_path = os.path.join(log_dir, f'{model_name}_{timestamp}_metrics.json')
     
+    # Déterminer le mode basé sur la métrique surveillée
+    # Les métriques contenant 'loss' doivent être minimisées, les autres maximisées
+    if 'loss' in monitor:
+        mode = 'min'
+    else:
+        mode = 'max'  # Pour dice_coefficient, iou, accuracy, etc.
+
     callbacks = [
         # 1. ModelCheckpoint - Sauvegarde le meilleur modèle
         keras.callbacks.ModelCheckpoint(
@@ -177,23 +184,24 @@ def create_callbacks(model_name: str,
             monitor=monitor,
             save_best_only=save_best_only,
             save_weights_only=False,
-            mode='auto',
+            mode=mode,
             verbose=1
         ),
-        
+
         # 2. EarlyStopping - Arrête si pas d'amélioration
         EarlyStoppingWithRestore(
             monitor=monitor,
             patience=patience_early_stop,
             verbose=1
         ),
-        
+
         # 3. ReduceLROnPlateau - Réduit le LR si plateau
         keras.callbacks.ReduceLROnPlateau(
             monitor=monitor,
             factor=0.5,
             patience=patience_reduce_lr,
             min_lr=1e-7,
+            mode=mode,
             verbose=1
         ),
         
