@@ -206,11 +206,11 @@ def train_hybrid_100(data_path, epochs=NUM_EPOCHS):
     # 3. Callbacks
     callbacks = create_callbacks(
         model_name='hybrid_100img',
-        save_dir=MODELS_DIR,
-        logs_dir=LOGS_DIR,
+        models_dir=MODELS_DIR,
+        log_dir=LOGS_DIR,
         monitor='val_dice_coefficient',
-        patience_early=5,
-        patience_lr=3
+        patience_early_stop=5,
+        patience_reduce_lr=3
     )
     
     # 4. Entraînement
