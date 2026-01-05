@@ -244,6 +244,78 @@ def train_hybrid_100(data_path, epochs=NUM_EPOCHS):
     return model, history
 
 
+def remap_class_id(class_id: int) -> int:
+    """
+    Remappe les classes RDD2022 vers classes YOLO consécutives
+    RDD2022: 0, 1, 2, 4 -> YOLO: 0, 1, 2, 3
+    """
+    mapping = {0: 0, 1: 1, 2: 2, 4: 3}
+    return mapping.get(class_id, class_id)
+
+
+def bbox_to_polygon(x_center: float, y_center: float, width: float, height: float) -> list:
+    """
+    Convertit une bounding box en polygone (4 coins) pour YOLO segmentation
+    """
+    x1 = max(0.0, min(1.0, x_center - width / 2))
+    y1 = max(0.0, min(1.0, y_center - height / 2))
+    x2 = max(0.0, min(1.0, x_center + width / 2))
+    y2 = max(0.0, min(1.0, y_center - height / 2))
+    x3 = max(0.0, min(1.0, x_center + width / 2))
+    y3 = max(0.0, min(1.0, y_center + height / 2))
+    x4 = max(0.0, min(1.0, x_center - width / 2))
+    y4 = max(0.0, min(1.0, y_center + height / 2))
+    return [x1, y1, x2, y2, x3, y3, x4, y4]
+
+
+def convert_label_for_yolo_seg(input_path, output_path):
+    """
+    Convertit un fichier de label YOLO detection vers YOLO segmentation
+    - Remappe classe 4 vers 3
+    - Convertit bbox vers polygone
+    """
+    from pathlib import Path
+    input_path = Path(input_path)
+    output_path = Path(output_path)
+
+    if not input_path.exists():
+        return False
+
+    try:
+        with open(input_path, 'r') as f:
+            lines = f.readlines()
+
+        converted_lines = []
+        for line in lines:
+            parts = line.strip().split()
+            if len(parts) < 5:
+                continue
+
+            class_id = int(parts[0])
+            x_center = float(parts[1])
+            y_center = float(parts[2])
+            width = float(parts[3])
+            height = float(parts[4])
+
+            # Remapper la classe (4 -> 3)
+            new_class_id = remap_class_id(class_id)
+
+            # Convertir bbox en polygone
+            polygon = bbox_to_polygon(x_center, y_center, width, height)
+
+            # Format YOLO segmentation: class x1 y1 x2 y2 x3 y3 x4 y4
+            new_line = f"{new_class_id}"
+            for coord in polygon:
+                new_line += f" {coord:.6f}"
+            converted_lines.append(new_line + "\n")
+
+        with open(output_path, 'w') as f:
+            f.writelines(converted_lines)
+        return True
+    except Exception:
+        return False
+
+
 def train_yolo_100(data_path, epochs=NUM_EPOCHS):
     """
     Entraîne YOLO sur 100 images
@@ -254,52 +326,56 @@ def train_yolo_100(data_path, epochs=NUM_EPOCHS):
     print("=" * 100)
     print(f"⏱️  Temps estimé : 2-3 minutes")
     print("=" * 100)
-    
+
     try:
         from ultralytics import YOLO
         from models.yolo_pretrained import YOLOSegmentation, create_yolo_data_yaml
         import shutil
         from pathlib import Path
-        
+
         # Créer un dataset temporaire avec 100 images
         print(f"\n📦 Création dataset temporaire ({NUM_TRAIN_IMAGES} images)...")
-        
+
         temp_dir = Path(data_path).parent / 'RDD_SPLIT_100'
-        
+
         # Supprimer l'ancien si existe
         if temp_dir.exists():
             shutil.rmtree(temp_dir)
-        
+
         # Créer la structure
         (temp_dir / 'train' / 'images').mkdir(parents=True, exist_ok=True)
         (temp_dir / 'train' / 'labels').mkdir(parents=True, exist_ok=True)
         (temp_dir / 'val' / 'images').mkdir(parents=True, exist_ok=True)
         (temp_dir / 'val' / 'labels').mkdir(parents=True, exist_ok=True)
-        
-        # Copier 100 images train
+
+        # Copier 100 images train et convertir les labels
         source_train_img = Path(data_path) / 'train' / 'images'
         source_train_lbl = Path(data_path) / 'train' / 'labels'
-        
+
         train_files = list(source_train_img.glob('*.jpg'))[:NUM_TRAIN_IMAGES]
-        
+
         for img_file in train_files:
             shutil.copy(img_file, temp_dir / 'train' / 'images')
             lbl_file = source_train_lbl / (img_file.stem + '.txt')
+            dest_lbl = temp_dir / 'train' / 'labels' / (img_file.stem + '.txt')
             if lbl_file.exists():
-                shutil.copy(lbl_file, temp_dir / 'train' / 'labels')
-        
-        # Copier 20 images val
+                # Convertir le label pour YOLO segmentation
+                convert_label_for_yolo_seg(lbl_file, dest_lbl)
+
+        # Copier 20 images val et convertir les labels
         source_val_img = Path(data_path) / 'val' / 'images'
         source_val_lbl = Path(data_path) / 'val' / 'labels'
-        
+
         val_files = list(source_val_img.glob('*.jpg'))[:NUM_VAL_IMAGES]
-        
+
         for img_file in val_files:
             shutil.copy(img_file, temp_dir / 'val' / 'images')
             lbl_file = source_val_lbl / (img_file.stem + '.txt')
+            dest_lbl = temp_dir / 'val' / 'labels' / (img_file.stem + '.txt')
             if lbl_file.exists():
-                shutil.copy(lbl_file, temp_dir / 'val' / 'labels')
-        
+                # Convertir le label pour YOLO segmentation
+                convert_label_for_yolo_seg(lbl_file, dest_lbl)
+
         print(f"✅ Dataset créé: {temp_dir}")
         
         # Créer le fichier YAML
