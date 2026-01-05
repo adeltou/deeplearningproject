@@ -321,16 +321,23 @@ def train_yolo_100(data_path, epochs=NUM_EPOCHS):
         
         # Entraîner
         print(f"\n🚀 Entraînement YOLO ({epochs} epochs)...\n")
-        
+
+        # Nettoyer les anciens résultats YOLO pour éviter les problèmes de resume
+        yolo_results_dir = Path(data_path).parent / 'yolo_temp_results'
+        if yolo_results_dir.exists():
+            shutil.rmtree(yolo_results_dir)
+
         results = yolo.model.train(
             data=str(yaml_path),
             epochs=epochs,
             batch=4,  # Réduit pour aller plus vite
             imgsz=640,
-            project=str(Path(data_path).parent / 'yolo_temp_results'),
+            project=str(yolo_results_dir),
             name='yolo_100img',
             patience=5,
-            save=False,  # Ne pas sauvegarder pour gagner du temps
+            save=True,  # Sauvegarder pour éviter erreurs avec early stopping
+            resume=False,  # Ne pas reprendre d'un entraînement précédent
+            exist_ok=True,  # Permettre d'écraser le dossier existant
             plots=False,
             verbose=True
         )
