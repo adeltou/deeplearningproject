@@ -244,64 +244,80 @@ def train_hybrid_100(data_path, epochs=NUM_EPOCHS):
     return model, history
 
 
-def train_yolo_100(data_path, epochs=NUM_EPOCHS):
+def train_yolo_100(data_path, epochs=NUM_EPOCHS, use_segmentation=False):
     """
     Entraîne YOLO sur 100 images
     Temps estimé : 2-3 minutes
+
+    Args:
+        data_path: Chemin vers le dataset
+        epochs: Nombre d'epochs
+        use_segmentation: Si True, utilise le modèle de segmentation (nécessite des labels polygones).
+                          Si False (défaut), utilise le modèle de détection (labels bounding box).
+
+    Note:
+        - Pour la segmentation (use_segmentation=True), les labels doivent être au format:
+          class x1 y1 x2 y2 x3 y3 ... (coordonnées polygones normalisées)
+        - Pour la détection (use_segmentation=False), les labels doivent être au format:
+          class x_center y_center width height (coordonnées bbox normalisées)
     """
+    mode = "SEGMENTATION" if use_segmentation else "DÉTECTION"
+    model_file = 'yolov8n-seg.pt' if use_segmentation else 'yolov8n.pt'
+
     print("\n" + "=" * 100)
-    print(f"⚡ ENTRAÎNEMENT YOLO - {NUM_TRAIN_IMAGES} IMAGES, {epochs} EPOCHS")
+    print(f"⚡ ENTRAÎNEMENT YOLO {mode} - {NUM_TRAIN_IMAGES} IMAGES, {epochs} EPOCHS")
     print("=" * 100)
     print(f"⏱️  Temps estimé : 2-3 minutes")
+    print(f"📦 Modèle: {model_file}")
     print("=" * 100)
-    
+
     try:
         from ultralytics import YOLO
-        from models.yolo_pretrained import YOLOSegmentation, create_yolo_data_yaml
+        from models.yolo_pretrained import create_yolo_data_yaml
         import shutil
         from pathlib import Path
-        
+
         # Créer un dataset temporaire avec 100 images
         print(f"\n📦 Création dataset temporaire ({NUM_TRAIN_IMAGES} images)...")
-        
+
         temp_dir = Path(data_path).parent / 'RDD_SPLIT_100'
-        
+
         # Supprimer l'ancien si existe
         if temp_dir.exists():
             shutil.rmtree(temp_dir)
-        
+
         # Créer la structure
         (temp_dir / 'train' / 'images').mkdir(parents=True, exist_ok=True)
         (temp_dir / 'train' / 'labels').mkdir(parents=True, exist_ok=True)
         (temp_dir / 'val' / 'images').mkdir(parents=True, exist_ok=True)
         (temp_dir / 'val' / 'labels').mkdir(parents=True, exist_ok=True)
-        
+
         # Copier 100 images train
         source_train_img = Path(data_path) / 'train' / 'images'
         source_train_lbl = Path(data_path) / 'train' / 'labels'
-        
+
         train_files = list(source_train_img.glob('*.jpg'))[:NUM_TRAIN_IMAGES]
-        
+
         for img_file in train_files:
             shutil.copy(img_file, temp_dir / 'train' / 'images')
             lbl_file = source_train_lbl / (img_file.stem + '.txt')
             if lbl_file.exists():
                 shutil.copy(lbl_file, temp_dir / 'train' / 'labels')
-        
+
         # Copier 20 images val
         source_val_img = Path(data_path) / 'val' / 'images'
         source_val_lbl = Path(data_path) / 'val' / 'labels'
-        
+
         val_files = list(source_val_img.glob('*.jpg'))[:NUM_VAL_IMAGES]
-        
+
         for img_file in val_files:
             shutil.copy(img_file, temp_dir / 'val' / 'images')
             lbl_file = source_val_lbl / (img_file.stem + '.txt')
             if lbl_file.exists():
                 shutil.copy(lbl_file, temp_dir / 'val' / 'labels')
-        
+
         print(f"✅ Dataset créé: {temp_dir}")
-        
+
         # Créer le fichier YAML
         yaml_path = temp_dir / 'data.yaml'
         create_yolo_data_yaml(
@@ -309,20 +325,16 @@ def train_yolo_100(data_path, epochs=NUM_EPOCHS):
             val_path=str(temp_dir / 'val'),
             output_path=str(yaml_path)
         )
-        
-        # Créer le modèle YOLO
-        print("\n🏗️  Chargement YOLO...")
-        yolo = YOLOSegmentation(
-            model_name='yolov8n-seg.pt',
-            num_classes=NUM_CLASSES,
-            img_size=640
-        )
-        yolo.load_pretrained()
-        
+
+        # Créer le modèle YOLO (détection ou segmentation)
+        print(f"\n🏗️  Chargement YOLO ({mode})...")
+        yolo = YOLO(model_file)
+        print(f"✅ Modèle {model_file} chargé")
+
         # Entraîner
         print(f"\n🚀 Entraînement YOLO ({epochs} epochs)...\n")
-        
-        results = yolo.model.train(
+
+        results = yolo.train(
             data=str(yaml_path),
             epochs=epochs,
             batch=4,  # Réduit pour aller plus vite
@@ -334,17 +346,17 @@ def train_yolo_100(data_path, epochs=NUM_EPOCHS):
             plots=False,
             verbose=True
         )
-        
+
         print("\n" + "=" * 100)
-        print(f"✅ YOLO TERMINÉ ({NUM_TRAIN_IMAGES} images, {epochs} epochs)")
+        print(f"✅ YOLO {mode} TERMINÉ ({NUM_TRAIN_IMAGES} images, {epochs} epochs)")
         print("=" * 100)
-        
+
         # Nettoyage
         print("\n🗑️  Nettoyage...")
         shutil.rmtree(temp_dir)
-        
+
         return yolo, results
-        
+
     except ImportError:
         print("❌ Ultralytics non disponible!")
         return None, None
@@ -372,7 +384,7 @@ if __name__ == "__main__":
     print("Quel modèle voulez-vous entraîner ?")
     print("  1. U-Net (~2 min)")
     print("  2. Hybride (~3 min)")
-    print("  3. YOLO (~2 min)")
+    print("  3. YOLO Détection (~2 min) - pour labels bounding box")
     print("  4. TOUS (~8 min)")
     print()
     

@@ -293,6 +293,93 @@ class YOLOSegmentation:
 # FONCTIONS UTILITAIRES
 # ============================================================================
 
+def convert_bbox_to_polygon(label_file: str, output_file: str = None):
+    """
+    Convertit un fichier de labels YOLO détection (bounding box) en format segmentation (polygone).
+
+    Le format détection est: class x_center y_center width height
+    Le format segmentation est: class x1 y1 x2 y2 x3 y3 x4 y4 (rectangle comme polygone à 4 points)
+
+    Args:
+        label_file: Chemin vers le fichier de labels détection (.txt)
+        output_file: Chemin de sortie (si None, écrase le fichier original)
+
+    Returns:
+        Chemin du fichier converti
+    """
+    if output_file is None:
+        output_file = label_file
+
+    converted_lines = []
+
+    with open(label_file, 'r') as f:
+        for line in f:
+            parts = line.strip().split()
+            if len(parts) == 5:  # Format détection: class x_center y_center w h
+                cls = parts[0]
+                x_center = float(parts[1])
+                y_center = float(parts[2])
+                w = float(parts[3])
+                h = float(parts[4])
+
+                # Calculer les 4 coins du rectangle (polygone)
+                x1 = x_center - w / 2  # top-left x
+                y1 = y_center - h / 2  # top-left y
+                x2 = x_center + w / 2  # top-right x
+                y2 = y_center - h / 2  # top-right y
+                x3 = x_center + w / 2  # bottom-right x
+                y3 = y_center + h / 2  # bottom-right y
+                x4 = x_center - w / 2  # bottom-left x
+                y4 = y_center + h / 2  # bottom-left y
+
+                # Format segmentation: class x1 y1 x2 y2 x3 y3 x4 y4
+                polygon_line = f"{cls} {x1:.6f} {y1:.6f} {x2:.6f} {y2:.6f} {x3:.6f} {y3:.6f} {x4:.6f} {y4:.6f}"
+                converted_lines.append(polygon_line)
+            elif len(parts) > 5:  # Déjà en format segmentation
+                converted_lines.append(line.strip())
+
+    with open(output_file, 'w') as f:
+        f.write('\n'.join(converted_lines))
+
+    return output_file
+
+
+def convert_dataset_to_segmentation(labels_dir: str, output_dir: str = None):
+    """
+    Convertit tous les fichiers de labels d'un répertoire du format détection au format segmentation.
+
+    Args:
+        labels_dir: Répertoire contenant les fichiers .txt de labels détection
+        output_dir: Répertoire de sortie (si None, crée un sous-dossier 'segmentation_labels')
+
+    Returns:
+        Chemin du répertoire de sortie
+    """
+    from pathlib import Path
+
+    labels_path = Path(labels_dir)
+
+    if output_dir is None:
+        output_path = labels_path.parent / 'segmentation_labels'
+    else:
+        output_path = Path(output_dir)
+
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    label_files = list(labels_path.glob('*.txt'))
+    converted_count = 0
+
+    for lbl_file in label_files:
+        out_file = output_path / lbl_file.name
+        convert_bbox_to_polygon(str(lbl_file), str(out_file))
+        converted_count += 1
+
+    print(f"✅ {converted_count} fichiers convertis au format segmentation")
+    print(f"   Sortie: {output_path}")
+
+    return str(output_path)
+
+
 def create_yolo_data_yaml(train_path: str,
                          val_path: str,
                          test_path: str = None,
