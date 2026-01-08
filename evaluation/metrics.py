@@ -164,59 +164,78 @@ def evaluate_model_on_dataset(model,
 
 def calculate_iou_single(mask_true: np.ndarray, mask_pred: np.ndarray) -> float:
     """
-    Calcule l'IoU pour une seule paire de masques
-    
+    Calcule le Mean IoU pour une seule paire de masques
+
     L'IoU (Intersection over Union) mesure le chevauchement entre deux masques.
     Plus l'IoU est élevé (proche de 1), meilleure est la prédiction.
-    
+
+    Formule par classe: IoU = TP / (TP + FP + FN)
+    Mean IoU = moyenne des IoU de chaque classe présente
+
     Args:
         mask_true: Masque ground truth (H, W)
         mask_pred: Masque prédit (H, W)
-        
+
     Returns:
-        IoU score entre 0 et 1
+        Mean IoU score entre 0 et 1
     """
-    # Aplatir les masques
-    true_flat = mask_true.flatten()
-    pred_flat = mask_pred.flatten()
-    
-    # Calculer l'intersection et l'union
-    intersection = np.sum(true_flat == pred_flat)
-    total_pixels = len(true_flat)
-    
-    # IoU simplifié (pixel accuracy pondéré)
-    iou = intersection / total_pixels if total_pixels > 0 else 0
-    
-    return iou
+    iou_per_class = []
+
+    # Calculer l'IoU pour chaque classe présente dans le ground truth ou la prédiction
+    for class_id in range(NUM_CLASSES + 1):
+        # Masques binaires pour cette classe
+        true_binary = (mask_true == class_id)
+        pred_binary = (mask_pred == class_id)
+
+        # Intersection et Union
+        intersection = np.sum(true_binary & pred_binary)
+        union = np.sum(true_binary | pred_binary)
+
+        # Calculer IoU seulement si la classe existe dans ground truth ou prédiction
+        if union > 0:
+            iou = intersection / union
+            iou_per_class.append(iou)
+
+    # Retourner la moyenne des IoU
+    return np.mean(iou_per_class) if iou_per_class else 0.0
 
 
 def calculate_dice_single(mask_true: np.ndarray, mask_pred: np.ndarray) -> float:
     """
-    Calcule le coefficient de Dice pour une seule paire de masques
-    
+    Calcule le Mean Dice coefficient pour une seule paire de masques
+
     Le coefficient de Dice est similaire à l'IoU mais avec une formule différente.
     Il est particulièrement utile pour les classes déséquilibrées.
-    
-    Dice = 2 * |A ∩ B| / (|A| + |B|)
-    
+
+    Formule par classe: Dice = 2 * |A ∩ B| / (|A| + |B|)
+    Mean Dice = moyenne des Dice de chaque classe présente
+
     Args:
         mask_true: Masque ground truth (H, W)
         mask_pred: Masque prédit (H, W)
-        
+
     Returns:
-        Dice coefficient entre 0 et 1
+        Mean Dice coefficient entre 0 et 1
     """
-    # Aplatir
-    true_flat = mask_true.flatten()
-    pred_flat = mask_pred.flatten()
-    
-    # Intersection
-    intersection = np.sum(true_flat == pred_flat)
-    
-    # Dice
-    dice = (2.0 * intersection) / (len(true_flat) + len(pred_flat))
-    
-    return dice
+    dice_per_class = []
+
+    # Calculer le Dice pour chaque classe présente
+    for class_id in range(NUM_CLASSES + 1):
+        # Masques binaires pour cette classe
+        true_binary = (mask_true == class_id)
+        pred_binary = (mask_pred == class_id)
+
+        # Intersection et somme des cardinalités
+        intersection = np.sum(true_binary & pred_binary)
+        sum_cardinality = np.sum(true_binary) + np.sum(pred_binary)
+
+        # Calculer Dice seulement si la classe existe dans ground truth ou prédiction
+        if sum_cardinality > 0:
+            dice = (2.0 * intersection) / sum_cardinality
+            dice_per_class.append(dice)
+
+    # Retourner la moyenne des Dice
+    return np.mean(dice_per_class) if dice_per_class else 0.0
 
 
 def calculate_pixel_accuracy_single(mask_true: np.ndarray, mask_pred: np.ndarray) -> float:
