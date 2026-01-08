@@ -303,54 +303,61 @@ def evaluate_all_models(data_path: str,
     # ========================================================================
     print("\n💾 PHASE 4: Sauvegarde des résultats")
     print("-" * 100)
-    
-    # Sauvegarder en JSON
-    results_file = os.path.join(eval_folder, 'evaluation_results.json')
-    save_results_json(results_dict, results_file)
-    
-    # Créer un résumé texte
+
+    # Créer un résumé texte AVANT de sauvegarder en JSON
+    # (car save_results_json modifie le dict en ajoutant 'timestamp')
     summary_file = os.path.join(eval_folder, 'evaluation_summary.txt')
     with open(summary_file, 'w', encoding='utf-8') as f:
         f.write("=" * 100 + "\n")
         f.write("RÉSUMÉ DE L'ÉVALUATION DES MODÈLES\n")
         f.write("=" * 100 + "\n\n")
-        
+
         f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         f.write(f"Dataset: {data_path}\n")
         f.write(f"Nombre d'images évaluées: {num_samples or len(test_loader)}\n\n")
-        
+
         # Tableau comparatif
         f.write("PERFORMANCES GLOBALES\n")
         f.write("-" * 100 + "\n\n")
-        
+
         # En-tête
         f.write(f"{'Modèle':<15} {'IoU':<10} {'Dice':<10} {'Pixel Accuracy':<15}\n")
         f.write("-" * 100 + "\n")
-        
-        # Lignes
+
+        # Lignes - filtrer les clés qui ne sont pas des modèles
         for model_name, results in results_dict.items():
+            # Ignorer les clés qui ne sont pas des résultats de modèles
+            if not isinstance(results, dict) or 'global' not in results:
+                continue
             iou = results['global']['iou']
             dice = results['global']['dice']
             acc = results['global']['pixel_accuracy']
             f.write(f"{model_name:<15} {iou:<10.4f} {dice:<10.4f} {acc:<15.4f}\n")
-        
+
         f.write("\n" + "=" * 100 + "\n")
-        
+
         # Métriques par classe
         f.write("\nPERFORMANCES PAR CLASSE\n")
         f.write("-" * 100 + "\n\n")
-        
+
         for model_name, results in results_dict.items():
+            # Ignorer les clés qui ne sont pas des résultats de modèles
+            if not isinstance(results, dict) or 'per_class' not in results:
+                continue
             f.write(f"\n{model_name}:\n")
             f.write("-" * 50 + "\n")
-            
+
             for class_id, metrics in results['per_class'].items():
                 class_name = CLASS_NAMES.get(class_id - 1 if class_id > 0 else 0, f"Classe {class_id}")
                 if class_id == 0:
                     class_name = "Background"
-                
+
                 f.write(f"  {class_name:<20} IoU: {metrics['iou']:.4f}  Dice: {metrics['dice']:.4f}\n")
-    
+
+    # Sauvegarder en JSON (après avoir écrit le résumé)
+    results_file = os.path.join(eval_folder, 'evaluation_results.json')
+    save_results_json(results_dict, results_file)
+
     print(f"✅ Résultats sauvegardés: {results_file}")
     print(f"✅ Résumé sauvegardé: {summary_file}")
     
@@ -361,20 +368,23 @@ def evaluate_all_models(data_path: str,
     print("TABLEAU RÉCAPITULATIF DES PERFORMANCES")
     print("=" * 100)
     
-    # Préparer les données pour le tableau
+    # Préparer les données pour le tableau (filtrer les entrées non-modèles)
     comparison_data = {}
-    for model_name, results in results_dict.items():
+    model_results = {k: v for k, v in results_dict.items()
+                     if isinstance(v, dict) and 'global' in v}
+
+    for model_name, results in model_results.items():
         comparison_data[model_name] = {
             'IoU': results['global']['iou'],
             'Dice': results['global']['dice'],
             'Pixel Accuracy': results['global']['pixel_accuracy']
         }
-    
+
     print_summary_table(comparison_data)
-    
+
     # Identifier le meilleur modèle
-    best_model_iou = max(results_dict.items(), key=lambda x: x[1]['global']['iou'])
-    best_model_dice = max(results_dict.items(), key=lambda x: x[1]['global']['dice'])
+    best_model_iou = max(model_results.items(), key=lambda x: x[1]['global']['iou'])
+    best_model_dice = max(model_results.items(), key=lambda x: x[1]['global']['dice'])
     
     print("\n🏆 MEILLEURS MODÈLES:")
     print(f"  - Meilleur IoU: {best_model_iou[0]} ({best_model_iou[1]['global']['iou']:.4f})")
@@ -402,43 +412,47 @@ def evaluate_all_models(data_path: str,
 def compare_models(results_dict: Dict) -> str:
     """
     Compare les modèles et génère un rapport textuel
-    
+
     Cette fonction analyse les résultats et génère des insights
     sur les forces et faiblesses de chaque modèle.
-    
+
     Args:
         results_dict: Dict avec les résultats de tous les modèles
-        
+
     Returns:
         String avec le rapport d'analyse
     """
+    # Filtrer les entrées qui ne sont pas des résultats de modèles
+    model_results = {k: v for k, v in results_dict.items()
+                     if isinstance(v, dict) and 'global' in v}
+
     report = []
     report.append("\n" + "=" * 100)
     report.append("ANALYSE COMPARATIVE DES MODÈLES")
     report.append("=" * 100 + "\n")
-    
+
     # Comparaison globale
     report.append("1. PERFORMANCES GLOBALES")
     report.append("-" * 100)
-    
-    for model_name, results in results_dict.items():
+
+    for model_name, results in model_results.items():
         iou = results['global']['iou']
         dice = results['global']['dice']
         acc = results['global']['pixel_accuracy']
-        
+
         report.append(f"\n{model_name}:")
         report.append(f"  - IoU: {iou:.4f}")
         report.append(f"  - Dice: {dice:.4f}")
         report.append(f"  - Accuracy: {acc:.4f}")
-    
+
     # Analyse par classe
     report.append("\n\n2. ANALYSE PAR TYPE DE DOMMAGE")
     report.append("-" * 100)
-    
+
     # Trouver les classes les plus difficiles
     class_difficulties = {cid: [] for cid in range(NUM_CLASSES + 1)}
-    
-    for model_name, results in results_dict.items():
+
+    for model_name, results in model_results.items():
         for class_id, metrics in results['per_class'].items():
             class_difficulties[class_id].append((model_name, metrics['iou']))
     
