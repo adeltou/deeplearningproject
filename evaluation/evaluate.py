@@ -236,7 +236,8 @@ def evaluate_all_models(data_path: str,
             data_loader=test_loader,
             preprocessor=preprocessor,
             num_samples=num_samples,
-            batch_size=batch_size
+            batch_size=batch_size,
+            model_name=model_name
         )
         
         results_dict[model_name] = results
