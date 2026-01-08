@@ -32,7 +32,7 @@ def is_yolo_model(model) -> bool:
     return 'ultralytics' in model_type.lower() or 'yolo' in model_type.lower()
 
 
-def predict_with_yolo(model, batch_images: np.ndarray, preprocessor: ImagePreprocessor) -> np.ndarray:
+def predict_with_yolo(model, batch_images: np.ndarray, preprocessor: ImagePreprocessor, debug: bool = False) -> np.ndarray:
     """
     Effectue des prédictions avec un modèle YOLO
 
@@ -44,26 +44,52 @@ def predict_with_yolo(model, batch_images: np.ndarray, preprocessor: ImagePrepro
         model: Modèle YOLO (Ultralytics)
         batch_images: Batch d'images normalisées (N, H, W, C) en float32
         preprocessor: Préprocesseur pour dénormaliser les images
+        debug: Si True, affiche des informations de debug
 
     Returns:
         Masques prédits (N, H, W) avec class IDs
     """
     from models.yolo_pretrained import YOLOSegmentation
+    import cv2
 
     predictions = []
     yolo_wrapper = YOLOSegmentation()
 
-    for img in batch_images:
+    # Compteur pour le debug
+    total_detections = 0
+
+    for idx, img in enumerate(batch_images):
         # Dénormaliser l'image pour YOLO (0-1 -> 0-255)
         img_uint8 = preprocessor.denormalize_image(img)
 
-        # Prédire avec YOLO
-        results = model.predict(source=img_uint8, conf=0.25, save=False, verbose=False)
+        # Redimensionner à la taille attendue par YOLO (640x640)
+        img_yolo = cv2.resize(img_uint8, (YOLO_CONFIG['img_size'], YOLO_CONFIG['img_size']))
+
+        # Prédire avec YOLO - utiliser un seuil de confiance plus bas
+        results = model.predict(
+            source=img_yolo,
+            conf=0.1,  # Seuil de confiance plus bas pour détecter plus d'objets
+            iou=YOLO_CONFIG['iou_threshold'],
+            imgsz=YOLO_CONFIG['img_size'],
+            save=False,
+            verbose=False
+        )
 
         # Convertir les masques YOLO en format standard
         mask = yolo_wrapper.convert_masks_to_segmentation(results, target_size=IMG_SIZE)
 
+        # Debug: compter les détections
+        if results[0].masks is not None:
+            num_detections = len(results[0].masks)
+            total_detections += num_detections
+            if debug and idx == 0:
+                print(f"     - YOLO détections image 0: {num_detections}")
+                print(f"     - Classes détectées: {results[0].boxes.cls.cpu().numpy() if results[0].boxes is not None else 'aucune'}")
+
         predictions.append(mask)
+
+    if debug:
+        print(f"     - Total détections YOLO sur batch: {total_detections}")
 
     return np.array(predictions)
 
@@ -158,7 +184,8 @@ def evaluate_model_on_dataset(model,
         # Prédiction - gérer différemment selon le type de modèle
         if is_yolo_model(model):
             # YOLO nécessite un traitement spécial
-            batch_masks_pred = predict_with_yolo(model, batch_images, preprocessor)
+            # Activer le debug pour le premier batch
+            batch_masks_pred = predict_with_yolo(model, batch_images, preprocessor, debug=not debug_printed)
             batch_predictions = None  # YOLO retourne directement les masques
         else:
             # Modèles Keras (U-Net, Hybrid)
