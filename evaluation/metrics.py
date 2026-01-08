@@ -22,25 +22,27 @@ from preprocessing.preprocessing import ImagePreprocessor
 # ÉVALUATION GLOBALE DU MODÈLE
 # ============================================================================
 
-def evaluate_model_on_dataset(model, 
+def evaluate_model_on_dataset(model,
                               data_loader: RDD2022DataLoader,
                               preprocessor: ImagePreprocessor,
                               num_samples: int = None,
-                              batch_size: int = 8) -> Dict:
+                              batch_size: int = 8,
+                              model_name: str = None) -> Dict:
     """
     Évalue un modèle sur un dataset complet
-    
+
     Cette fonction prend un modèle entraîné et calcule toutes les métriques
     importantes sur l'ensemble du dataset de test. Elle retourne un dictionnaire
     contenant les performances globales et par classe.
-    
+
     Args:
         model: Modèle Keras ou YOLO à évaluer
         data_loader: Loader du dataset (train/val/test)
         preprocessor: Préprocesseur pour normaliser les images
         num_samples: Nombre d'échantillons à évaluer (None = tout le dataset)
         batch_size: Taille des batches pour l'évaluation
-        
+        model_name: Nom du modèle (pour l'affichage)
+
     Returns:
         Dict contenant toutes les métriques :
         {
@@ -56,7 +58,8 @@ def evaluate_model_on_dataset(model,
             'num_samples': int
         }
     """
-    print(f"\n📊 Évaluation du modèle sur {data_loader.split}...")
+    display_name = model_name if model_name else "modèle"
+    print(f"\n📊 Évaluation de {display_name} sur {data_loader.split}...")
     print("-" * 80)
     
     # Déterminer le nombre d'échantillons
@@ -75,35 +78,50 @@ def evaluate_model_on_dataset(model,
     
     # Évaluer batch par batch
     num_batches = (num_samples + batch_size - 1) // batch_size
-    
+
+    # Debug: afficher les informations du premier batch
+    debug_printed = False
+
     for batch_idx in range(num_batches):
         # Calculer les indices de début et fin pour ce batch
         start_idx = batch_idx * batch_size
         end_idx = min(start_idx + batch_size, num_samples)
-        
+
         # Charger et prétraiter les images du batch
         batch_images = []
         batch_masks_true = []
-        
+
         for idx in range(start_idx, end_idx):
             image, mask, _ = data_loader[idx]
-            
+
             # Prétraiter
             proc_image = preprocessor.preprocess_image(image)
             proc_mask = preprocessor.preprocess_mask(mask)
-            
+
             batch_images.append(proc_image)
             batch_masks_true.append(proc_mask)
-        
+
         # Convertir en arrays
         batch_images = np.array(batch_images)
         batch_masks_true = np.array(batch_masks_true)
-        
+
         # Prédiction
         batch_predictions = model.predict(batch_images, verbose=0)
-        
+
         # Convertir les prédictions en masques de classes
         batch_masks_pred = np.argmax(batch_predictions, axis=-1)
+
+        # Debug: afficher les informations du premier batch pour diagnostiquer
+        if not debug_printed:
+            print(f"\n  🔍 DEBUG - Premier batch:")
+            print(f"     - Shape images: {batch_images.shape}")
+            print(f"     - Shape masques vrais: {batch_masks_true.shape}")
+            print(f"     - Shape prédictions brutes: {batch_predictions.shape}")
+            print(f"     - Shape masques prédits: {batch_masks_pred.shape}")
+            print(f"     - Classes uniques dans masques vrais: {np.unique(batch_masks_true)}")
+            print(f"     - Classes uniques dans prédictions: {np.unique(batch_masks_pred)}")
+            print(f"     - Min/Max prédictions brutes: {batch_predictions.min():.4f} / {batch_predictions.max():.4f}")
+            debug_printed = True
         
         # Accumuler pour la matrice de confusion globale
         all_y_true.extend(batch_masks_true.flatten())
