@@ -106,7 +106,7 @@ def evaluate_model_on_dataset(model,
         batch_masks_true = np.array(batch_masks_true)
 
         # Prédiction
-        batch_predictions = model.predict(batch_images, verbose=0)
+        batch_predictions = model.predict(batch_images, verbose=False)
 
         # Convertir les prédictions en masques de classes
         batch_masks_pred = np.argmax(batch_predictions, axis=-1)
