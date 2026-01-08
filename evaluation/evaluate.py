@@ -328,6 +328,9 @@ def evaluate_all_models(data_path: str,
         
         # Lignes
         for model_name, results in results_dict.items():
+            # Skip non-model entries (like 'timestamp' added by save_results_json)
+            if not isinstance(results, dict) or 'global' not in results:
+                continue
             iou = results['global']['iou']
             dice = results['global']['dice']
             acc = results['global']['pixel_accuracy']
@@ -340,9 +343,12 @@ def evaluate_all_models(data_path: str,
         f.write("-" * 100 + "\n\n")
         
         for model_name, results in results_dict.items():
+            # Skip non-model entries (like 'timestamp' added by save_results_json)
+            if not isinstance(results, dict) or 'global' not in results:
+                continue
             f.write(f"\n{model_name}:\n")
             f.write("-" * 50 + "\n")
-            
+
             for class_id, metrics in results['per_class'].items():
                 class_name = CLASS_NAMES.get(class_id - 1 if class_id > 0 else 0, f"Classe {class_id}")
                 if class_id == 0:
@@ -363,6 +369,9 @@ def evaluate_all_models(data_path: str,
     # Préparer les données pour le tableau
     comparison_data = {}
     for model_name, results in results_dict.items():
+        # Skip non-model entries (like 'timestamp' added by save_results_json)
+        if not isinstance(results, dict) or 'global' not in results:
+            continue
         comparison_data[model_name] = {
             'IoU': results['global']['iou'],
             'Dice': results['global']['dice'],
@@ -371,9 +380,11 @@ def evaluate_all_models(data_path: str,
     
     print_summary_table(comparison_data)
     
-    # Identifier le meilleur modèle
-    best_model_iou = max(results_dict.items(), key=lambda x: x[1]['global']['iou'])
-    best_model_dice = max(results_dict.items(), key=lambda x: x[1]['global']['dice'])
+    # Identifier le meilleur modèle (filter out non-model entries)
+    model_items = [(k, v) for k, v in results_dict.items()
+                   if isinstance(v, dict) and 'global' in v]
+    best_model_iou = max(model_items, key=lambda x: x[1]['global']['iou'])
+    best_model_dice = max(model_items, key=lambda x: x[1]['global']['dice'])
     
     print("\n🏆 MEILLEURS MODÈLES:")
     print(f"  - Meilleur IoU: {best_model_iou[0]} ({best_model_iou[1]['global']['iou']:.4f})")
@@ -419,12 +430,15 @@ def compare_models(results_dict: Dict) -> str:
     # Comparaison globale
     report.append("1. PERFORMANCES GLOBALES")
     report.append("-" * 100)
-    
+
     for model_name, results in results_dict.items():
+        # Skip non-model entries (like 'timestamp' added by save_results_json)
+        if not isinstance(results, dict) or 'global' not in results:
+            continue
         iou = results['global']['iou']
         dice = results['global']['dice']
         acc = results['global']['pixel_accuracy']
-        
+
         report.append(f"\n{model_name}:")
         report.append(f"  - IoU: {iou:.4f}")
         report.append(f"  - Dice: {dice:.4f}")
@@ -436,8 +450,11 @@ def compare_models(results_dict: Dict) -> str:
     
     # Trouver les classes les plus difficiles
     class_difficulties = {cid: [] for cid in range(NUM_CLASSES + 1)}
-    
+
     for model_name, results in results_dict.items():
+        # Skip non-model entries (like 'timestamp' added by save_results_json)
+        if not isinstance(results, dict) or 'global' not in results:
+            continue
         for class_id, metrics in results['per_class'].items():
             class_difficulties[class_id].append((model_name, metrics['iou']))
     
