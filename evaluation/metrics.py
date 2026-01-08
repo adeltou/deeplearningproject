@@ -8,6 +8,7 @@ import tensorflow as tf
 from sklearn.metrics import confusion_matrix, classification_report
 from typing import Dict, List, Tuple
 import json
+import cv2
 
 # Import de la configuration
 import sys
@@ -19,14 +20,64 @@ from preprocessing.preprocessing import ImagePreprocessor
 
 
 # ============================================================================
+# FONCTION UTILITAIRE POUR YOLO
+# ============================================================================
+
+def _convert_yolo_results_to_mask(results, target_size: Tuple[int, int] = IMG_SIZE) -> np.ndarray:
+    """
+    Convertit les résultats de prédiction YOLO en masque de segmentation
+
+    Args:
+        results: Résultats de prédiction YOLO (liste)
+        target_size: Taille cible (height, width)
+
+    Returns:
+        Masque de segmentation (H, W) avec class IDs
+    """
+    for result in results:
+        if result.masks is None:
+            # Pas de masques détectés
+            return np.zeros(target_size, dtype=np.uint8)
+        else:
+            # Créer un masque vide
+            mask = np.zeros(target_size, dtype=np.uint8)
+
+            # Récupérer les masques et les classes
+            masks = result.masks.data.cpu().numpy()  # (N, H, W)
+            boxes = result.boxes
+            classes = boxes.cls.cpu().numpy().astype(int)  # Class IDs
+
+            # Redimensionner et fusionner les masques
+            for i, (m, cls) in enumerate(zip(masks, classes)):
+                # Redimensionner le masque
+                m_resized = cv2.resize(m, (target_size[1], target_size[0]))
+                m_binary = (m_resized > 0.5).astype(np.uint8)
+
+                # Mapper class_id: 0->1, 1->2, 2->3, 4->4
+                if cls == 4:
+                    mask_value = 4
+                else:
+                    mask_value = cls + 1
+
+                # Appliquer au masque final
+                mask[m_binary > 0] = mask_value
+
+            return mask
+
+    # Si aucun résultat
+    return np.zeros(target_size, dtype=np.uint8)
+
+
+# ============================================================================
 # ÉVALUATION GLOBALE DU MODÈLE
 # ============================================================================
 
-def evaluate_model_on_dataset(model, 
+def evaluate_model_on_dataset(model,
                               data_loader: RDD2022DataLoader,
                               preprocessor: ImagePreprocessor,
                               num_samples: int = None,
-                              batch_size: int = 8) -> Dict:
+                              batch_size: int = 8,
+                              model_name: str = None) -> Dict:
     """
     Évalue un modèle sur un dataset complet
     
@@ -40,6 +91,7 @@ def evaluate_model_on_dataset(model,
         preprocessor: Préprocesseur pour normaliser les images
         num_samples: Nombre d'échantillons à évaluer (None = tout le dataset)
         batch_size: Taille des batches pour l'évaluation
+        model_name: Nom du modèle ('U-Net', 'YOLO', 'Hybrid') pour gérer les différences de prédiction
         
     Returns:
         Dict contenant toutes les métriques :
@@ -98,12 +150,28 @@ def evaluate_model_on_dataset(model,
         # Convertir en arrays
         batch_images = np.array(batch_images)
         batch_masks_true = np.array(batch_masks_true)
-        
-        # Prédiction
-        batch_predictions = model.predict(batch_images, verbose=0)
-        
-        # Convertir les prédictions en masques de classes
-        batch_masks_pred = np.argmax(batch_predictions, axis=-1)
+
+        # Prédiction - gérer YOLO différemment des modèles Keras
+        if model_name == 'YOLO':
+            # YOLO nécessite un traitement image par image
+            batch_masks_pred = []
+            for img in batch_images:
+                # Dénormaliser l'image pour YOLO (attend des valeurs 0-255)
+                img_uint8 = preprocessor.denormalize_image(img)
+
+                # Prédire avec YOLO
+                results = model.predict(source=img_uint8, conf=0.25, save=False, verbose=False)
+
+                # Convertir les résultats YOLO en masque de segmentation
+                mask = _convert_yolo_results_to_mask(results, target_size=IMG_SIZE)
+                batch_masks_pred.append(mask)
+
+            batch_masks_pred = np.array(batch_masks_pred)
+        else:
+            # Modèles Keras (U-Net, Hybrid)
+            batch_predictions = model.predict(batch_images, verbose=0)
+            # Convertir les prédictions en masques de classes
+            batch_masks_pred = np.argmax(batch_predictions, axis=-1)
         
         # Accumuler pour la matrice de confusion globale
         all_y_true.extend(batch_masks_true.flatten())
