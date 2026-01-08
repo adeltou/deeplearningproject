@@ -18,6 +18,56 @@ from preprocessing.data_loader import RDD2022DataLoader
 from preprocessing.preprocessing import ImagePreprocessor
 
 
+def is_yolo_model(model) -> bool:
+    """
+    Vérifie si le modèle est un modèle YOLO (Ultralytics)
+
+    Args:
+        model: Le modèle à vérifier
+
+    Returns:
+        True si c'est un modèle YOLO, False sinon
+    """
+    model_type = str(type(model))
+    return 'ultralytics' in model_type.lower() or 'yolo' in model_type.lower()
+
+
+def predict_with_yolo(model, batch_images: np.ndarray, preprocessor: ImagePreprocessor) -> np.ndarray:
+    """
+    Effectue des prédictions avec un modèle YOLO
+
+    YOLO nécessite un traitement spécial:
+    - Les images doivent être en uint8 (0-255), pas normalisées
+    - Les prédictions retournent des objets Results qu'il faut convertir
+
+    Args:
+        model: Modèle YOLO (Ultralytics)
+        batch_images: Batch d'images normalisées (N, H, W, C) en float32
+        preprocessor: Préprocesseur pour dénormaliser les images
+
+    Returns:
+        Masques prédits (N, H, W) avec class IDs
+    """
+    from models.yolo_pretrained import YOLOSegmentation
+
+    predictions = []
+    yolo_wrapper = YOLOSegmentation()
+
+    for img in batch_images:
+        # Dénormaliser l'image pour YOLO (0-1 -> 0-255)
+        img_uint8 = preprocessor.denormalize_image(img)
+
+        # Prédire avec YOLO
+        results = model.predict(source=img_uint8, conf=0.25, save=False, verbose=False)
+
+        # Convertir les masques YOLO en format standard
+        mask = yolo_wrapper.convert_masks_to_segmentation(results, target_size=IMG_SIZE)
+
+        predictions.append(mask)
+
+    return np.array(predictions)
+
+
 # ============================================================================
 # ÉVALUATION GLOBALE DU MODÈLE
 # ============================================================================
@@ -105,22 +155,30 @@ def evaluate_model_on_dataset(model,
         batch_images = np.array(batch_images)
         batch_masks_true = np.array(batch_masks_true)
 
-        # Prédiction
-        batch_predictions = model.predict(batch_images, verbose=False)
-
-        # Convertir les prédictions en masques de classes
-        batch_masks_pred = np.argmax(batch_predictions, axis=-1)
+        # Prédiction - gérer différemment selon le type de modèle
+        if is_yolo_model(model):
+            # YOLO nécessite un traitement spécial
+            batch_masks_pred = predict_with_yolo(model, batch_images, preprocessor)
+            batch_predictions = None  # YOLO retourne directement les masques
+        else:
+            # Modèles Keras (U-Net, Hybrid)
+            batch_predictions = model.predict(batch_images, verbose=False)
+            # Convertir les prédictions en masques de classes
+            batch_masks_pred = np.argmax(batch_predictions, axis=-1)
 
         # Debug: afficher les informations du premier batch pour diagnostiquer
         if not debug_printed:
             print(f"\n  🔍 DEBUG - Premier batch:")
             print(f"     - Shape images: {batch_images.shape}")
             print(f"     - Shape masques vrais: {batch_masks_true.shape}")
-            print(f"     - Shape prédictions brutes: {batch_predictions.shape}")
+            if batch_predictions is not None:
+                print(f"     - Shape prédictions brutes: {batch_predictions.shape}")
+                print(f"     - Min/Max prédictions brutes: {batch_predictions.min():.4f} / {batch_predictions.max():.4f}")
+            else:
+                print(f"     - Modèle YOLO: prédictions converties directement en masques")
             print(f"     - Shape masques prédits: {batch_masks_pred.shape}")
             print(f"     - Classes uniques dans masques vrais: {np.unique(batch_masks_true)}")
             print(f"     - Classes uniques dans prédictions: {np.unique(batch_masks_pred)}")
-            print(f"     - Min/Max prédictions brutes: {batch_predictions.min():.4f} / {batch_predictions.max():.4f}")
             debug_printed = True
         
         # Accumuler pour la matrice de confusion globale
