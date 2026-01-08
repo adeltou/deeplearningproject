@@ -22,25 +22,27 @@ from preprocessing.preprocessing import ImagePreprocessor
 # ÉVALUATION GLOBALE DU MODÈLE
 # ============================================================================
 
-def evaluate_model_on_dataset(model, 
+def evaluate_model_on_dataset(model,
                               data_loader: RDD2022DataLoader,
                               preprocessor: ImagePreprocessor,
                               num_samples: int = None,
-                              batch_size: int = 8) -> Dict:
+                              batch_size: int = 8,
+                              model_name: str = None) -> Dict:
     """
     Évalue un modèle sur un dataset complet
-    
+
     Cette fonction prend un modèle entraîné et calcule toutes les métriques
     importantes sur l'ensemble du dataset de test. Elle retourne un dictionnaire
     contenant les performances globales et par classe.
-    
+
     Args:
         model: Modèle Keras ou YOLO à évaluer
         data_loader: Loader du dataset (train/val/test)
         preprocessor: Préprocesseur pour normaliser les images
         num_samples: Nombre d'échantillons à évaluer (None = tout le dataset)
         batch_size: Taille des batches pour l'évaluation
-        
+        model_name: Nom du modèle ('U-Net', 'YOLO', 'Hybrid') pour adapter la prédiction
+
     Returns:
         Dict contenant toutes les métriques :
         {
@@ -56,7 +58,7 @@ def evaluate_model_on_dataset(model,
             'num_samples': int
         }
     """
-    print(f"\n📊 Évaluation du modèle sur {data_loader.split}...")
+    print(f"\n📊 Évaluation du modèle {model_name or ''} sur {data_loader.split}...")
     print("-" * 80)
     
     # Déterminer le nombre d'échantillons
@@ -98,12 +100,31 @@ def evaluate_model_on_dataset(model,
         # Convertir en arrays
         batch_images = np.array(batch_images)
         batch_masks_true = np.array(batch_masks_true)
-        
-        # Prédiction
-        batch_predictions = model.predict(batch_images, verbose=0)
-        
-        # Convertir les prédictions en masques de classes
-        batch_masks_pred = np.argmax(batch_predictions, axis=-1)
+
+        # Prédiction (différente selon le type de modèle)
+        if model_name == 'YOLO':
+            # Prédiction YOLO - traiter image par image
+            batch_masks_pred = []
+            for img in batch_images:
+                # Dénormaliser l'image pour YOLO
+                img_uint8 = preprocessor.denormalize_image(img)
+
+                # Prédire avec YOLO
+                results = model.predict(source=img_uint8, conf=0.25, save=False, verbose=False)
+
+                # Convertir les masques YOLO en format standard
+                from models.yolo_pretrained import YOLOSegmentation
+                yolo_wrapper = YOLOSegmentation()
+                mask = yolo_wrapper.convert_masks_to_segmentation(results, target_size=IMG_SIZE)
+                batch_masks_pred.append(mask)
+
+            batch_masks_pred = np.array(batch_masks_pred)
+        else:
+            # Prédiction Keras (U-Net et Hybrid)
+            batch_predictions = model.predict(batch_images, verbose=0)
+
+            # Convertir les prédictions en masques de classes
+            batch_masks_pred = np.argmax(batch_predictions, axis=-1)
         
         # Accumuler pour la matrice de confusion globale
         all_y_true.extend(batch_masks_true.flatten())
