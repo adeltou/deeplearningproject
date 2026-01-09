@@ -1,6 +1,6 @@
 """
-Script d'Entraînement ULTRA-RAPIDE avec 100 Images
-Temps estimé : 5-8 minutes pour les 3 modèles
+Script d'Entraînement avec 1000 Images
+Temps estimé : 30-50 minutes pour les 3 modèles
 """
 
 import sys
@@ -25,20 +25,20 @@ import tensorflow as tf
 # =============================================================================
 # CONFIGURATION GLOBALE
 # =============================================================================
-NUM_TRAIN_IMAGES = 100   # ← CHANGE ICI pour modifier le nombre d'images train
-NUM_VAL_IMAGES = 20      # ← CHANGE ICI pour modifier le nombre d'images val
+NUM_TRAIN_IMAGES = 1000  # ← CHANGE ICI pour modifier le nombre d'images train
+NUM_VAL_IMAGES = 200     # ← CHANGE ICI pour modifier le nombre d'images val
 NUM_EPOCHS = 10          # ← CHANGE ICI pour modifier le nombre d'epochs
 
 
 def train_unet_100(data_path, epochs=NUM_EPOCHS):
     """
-    Entraîne U-Net sur 100 images
-    Temps estimé : 2-3 minutes
+    Entraîne U-Net sur 1000 images
+    Temps estimé : 10-15 minutes
     """
     print("\n" + "=" * 100)
     print(f"⚡ ENTRAÎNEMENT U-NET - {NUM_TRAIN_IMAGES} IMAGES, {epochs} EPOCHS")
     print("=" * 100)
-    print(f"⏱️  Temps estimé : 2-3 minutes")
+    print(f"⏱️  Temps estimé : 10-15 minutes")
     print("=" * 100)
     
     # Configuration
@@ -99,7 +99,7 @@ def train_unet_100(data_path, epochs=NUM_EPOCHS):
     
     # 3. Callbacks
     callbacks = create_callbacks(
-        model_name='unet_100img',
+        model_name='unet_1000img',
         models_dir=MODELS_DIR,
         log_dir=LOGS_DIR,
         monitor='val_dice_coefficient',
@@ -140,13 +140,13 @@ def train_unet_100(data_path, epochs=NUM_EPOCHS):
 
 def train_hybrid_100(data_path, epochs=NUM_EPOCHS):
     """
-    Entraîne le modèle Hybride sur 100 images
-    Temps estimé : 2-3 minutes
+    Entraîne le modèle Hybride sur 1000 images
+    Temps estimé : 15-20 minutes
     """
     print("\n" + "=" * 100)
     print(f"⚡ ENTRAÎNEMENT HYBRIDE - {NUM_TRAIN_IMAGES} IMAGES, {epochs} EPOCHS")
     print("=" * 100)
-    print(f"⏱️  Temps estimé : 2-3 minutes")
+    print(f"⏱️  Temps estimé : 15-20 minutes")
     print("=" * 100)
     
     # Configuration
@@ -205,7 +205,7 @@ def train_hybrid_100(data_path, epochs=NUM_EPOCHS):
     
     # 3. Callbacks
     callbacks = create_callbacks(
-        model_name='hybrid_100img',
+        model_name='hybrid_1000img',
         save_dir=MODELS_DIR,
         logs_dir=LOGS_DIR,
         monitor='val_dice_coefficient',
@@ -246,8 +246,8 @@ def train_hybrid_100(data_path, epochs=NUM_EPOCHS):
 
 def train_yolo_100(data_path, epochs=NUM_EPOCHS, use_segmentation=False):
     """
-    Entraîne YOLO sur 100 images
-    Temps estimé : 2-3 minutes
+    Entraîne YOLO sur 1000 images
+    Temps estimé : 10-15 minutes
 
     Args:
         data_path: Chemin vers le dataset
@@ -267,7 +267,7 @@ def train_yolo_100(data_path, epochs=NUM_EPOCHS, use_segmentation=False):
     print("\n" + "=" * 100)
     print(f"⚡ ENTRAÎNEMENT YOLO {mode} - {NUM_TRAIN_IMAGES} IMAGES, {epochs} EPOCHS")
     print("=" * 100)
-    print(f"⏱️  Temps estimé : 2-3 minutes")
+    print(f"⏱️  Temps estimé : 10-15 minutes")
     print(f"📦 Modèle: {model_file}")
     print("=" * 100)
 
@@ -280,7 +280,7 @@ def train_yolo_100(data_path, epochs=NUM_EPOCHS, use_segmentation=False):
         # Créer un dataset temporaire avec 100 images
         print(f"\n📦 Création dataset temporaire ({NUM_TRAIN_IMAGES} images)...")
 
-        temp_dir = Path(data_path).parent / 'RDD_SPLIT_100'
+        temp_dir = Path(data_path).parent / 'RDD_SPLIT_1000'
 
         # Supprimer l'ancien si existe
         if temp_dir.exists():
@@ -340,7 +340,7 @@ def train_yolo_100(data_path, epochs=NUM_EPOCHS, use_segmentation=False):
             batch=4,  # Réduit pour aller plus vite
             imgsz=640,
             project=str(Path(data_path).parent / 'yolo_temp_results'),
-            name='yolo_100img',
+            name='yolo_1000img',
             patience=5,
             save=False,  # Ne pas sauvegarder pour gagner du temps
             plots=False,
@@ -382,10 +382,10 @@ if __name__ == "__main__":
     print(f"   - NUM_EPOCHS = {NUM_EPOCHS}            ← Nombre d'epochs")
     print()
     print("Quel modèle voulez-vous entraîner ?")
-    print("  1. U-Net (~2 min)")
-    print("  2. Hybride (~3 min)")
-    print("  3. YOLO Détection (~2 min) - pour labels bounding box")
-    print("  4. TOUS (~8 min)")
+    print("  1. U-Net (~10-15 min)")
+    print("  2. Hybride (~15-20 min)")
+    print("  3. YOLO Détection (~10-15 min) - pour labels bounding box")
+    print("  4. TOUS (~35-50 min)")
     print()
     
     choice = input("Votre choix (1-4): ").strip()
@@ -401,7 +401,7 @@ if __name__ == "__main__":
         
     elif choice == '4':
         print("\n🚀 Entraînement des 3 modèles...")
-        print(f"⏱️  Temps total estimé : ~8 minutes")
+        print(f"⏱️  Temps total estimé : ~35-50 minutes")
         print()
         
         # U-Net
